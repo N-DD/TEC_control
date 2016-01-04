@@ -4,7 +4,6 @@
   Nicola Maghelli
 ********************************************************/
 
-#include <OneWire.h>
 #include <DallasTemperature.h>
 #include <errno.h>
 #include <EEPROM.h>
@@ -16,7 +15,7 @@
 #include <PID_AutoTune_v0.h>
 #include <PID_v1.h>
 
-#define _TEST
+//#define _TEST
 
 //******************************************************************************************
 //**********************************   OPTIONS   *******************************************
@@ -48,6 +47,8 @@ typedef struct OneWireNodes {
   byte addr[8];
   struct OneWireNodes *next;
 } OneWireNode;
+
+byte thisaddr[8];
 
 //TEC status
 bool TECrunning = FALSE;
@@ -182,34 +183,41 @@ void setup()
   head = NULL;
 
 #ifndef _TEST
+  //Starts up OneWire library
+  sensors.begin();
 
+  //reset search
   oneWire.reset_search();
 
-  while(oneWire.search(curr->addr)) {
-    //Serial.println("Start searching for devices...");
+  //search devices
+  while(oneWire.search(thisaddr)) {
+    Serial.println("Start searching for devices...");
     curr = (OneWireNode *)malloc(sizeof(OneWireNode));
-    //curr->addr = addr;
-    curr->next = head;
-    head = curr;
+    memcpy(curr->addr, thisaddr, sizeof(thisaddr));
 
-
-   //Serial.print("\n\rFound \'1-Wire\' device with address:\n\r");
+    Serial.println("Found \'1-Wire\' device with address:");
+   
     for( int i = 0; i < 8; i++) {
-      //Serial.print("0x");
+      Serial.print("0x");
       if (curr->addr[i] < 16) {
-        //Serial.print('0');
+        Serial.print('0');
       }
-      //Serial.print(curr->addr[i], HEX);
+      Serial.print(curr->addr[i], HEX);
       if (i < 7) {
-        //Serial.print(", ");
+        Serial.print(", ");
       }
     }
+
+    Serial.println();
+    
     if ( OneWire::crc8( curr->addr, 7) != curr->addr[7]) {
         errnum = tempSensorCRCError;
         sensor_error = TRUE;
-        //Serial.print("CRC is not valid!\n");
+        Serial.print("CRC is not valid!\n");
         //exit(tempSensorCRCError);
     }
+    curr->next = head;
+    head = curr;
   }
 
   curr = head;
@@ -227,9 +235,6 @@ void setup()
     //Serial.println("Wrong number of sensor detected!");
     //exit(errnum);
   }
-
-  //Starts up OneWire library
-  sensors.begin();
   
   //set resolution
   sensors.setResolution(_TEMPRESOLUTION);

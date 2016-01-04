@@ -1,6 +1,6 @@
 //Pin for TEC control
-#define TEC_OUT_PIN 3
+#define TEC_OUT_PIN 1
 
 //Bus for reading T1 and T2
-#define ONE_WIRE_BUS 1
+#define ONE_WIRE_BUS 3
 
