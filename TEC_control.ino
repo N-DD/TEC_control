@@ -11,7 +11,6 @@
 #include "errorCodes.h"
 #include "pinout.h"
 #include "serialComm.h"
-#include <SoftwareSerial.h>
 #include <SerialCommand.h>
 
 #include <PID_AutoTune_v0.h>
@@ -169,7 +168,7 @@ void setup()
   SCmd.addCommand("c", SetHc);
   SCmd.addCommand("h", SetHh);
   SCmd.addCommand("w", SaveState);
-  SCmd.addDefaultHandler(unrecognized);
+  SCmd.setDefaultHandler(unrecognized);
 
 
 //******************************************************************************************
@@ -314,6 +313,7 @@ if(!IsStandalone){
     RetrieveState();
     TECenabled = TRUE;
     TECrunning = TRUE;
+    TECerror = FALSE;
     Serial.println("Entering standalnoe mode...");
     IsStandalone = TRUE;
   }
@@ -557,6 +557,7 @@ void SaveState()
   int addr = 0;
  
   struct TEC_config {
+    double SetT;
     int alg;
     double K_p;
     double K_i;
@@ -565,7 +566,7 @@ void SaveState()
     double H_h;
   } CurrentState;
 
-  
+  CurrentState.SetT = Setpoint;
   CurrentState.alg = algorithm;
   CurrentState.K_p = Kp;
   CurrentState.K_i = Ki;
@@ -581,6 +582,7 @@ void RetrieveState()
    int addr = 0;
  
   struct TEC_config {
+    double SetT;
     int alg;
     double K_p;
     double K_i;
@@ -590,7 +592,8 @@ void RetrieveState()
   } CurrentState;
 
   EEPROM.get(addr, CurrentState);
-  
+
+  Setpoint = CurrentState.SetT;
   algorithm = CurrentState.alg;
   Kp = CurrentState.K_p;
   Ki = CurrentState.K_i;
@@ -599,7 +602,7 @@ void RetrieveState()
   Hys_heat = CurrentState.H_h; 
 }
 
-void unrecognized()
+void unrecognized(const char *command)
 {
   char *arg;
   arg = SCmd.next();
