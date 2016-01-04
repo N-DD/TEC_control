@@ -1,4 +1,4 @@
-
+ 
 /********************************************************
   TEC controller
   Nicola Maghelli
@@ -169,7 +169,7 @@ void setup()
   SCmd.addCommand("c", SetHc);
   SCmd.addCommand("h", SetHh);
   SCmd.addCommand("w", SaveState);
-  SCmd.setDefaultHandler(unrecognized);
+  SCmd.addDefaultHandler(unrecognized);
 
 
 //******************************************************************************************
@@ -222,7 +222,7 @@ void setup()
 
   curr = head;
   
-  Serial.print("Found "); Serial.print(sensors.getDeviceCount(), DEC); Serial.println(" devices");
+  Serial.print("Found "); Serial.print(sensors.getDeviceCount(), DEC); Serial.println(" sensors");
 
   if(sensors.getDeviceCount() == 2){   
     memcpy(&insideTemp, curr->addr, sizeof insideTemp);
@@ -607,7 +607,7 @@ void RetrieveState()
   Hys_heat = CurrentState.H_h; 
 }
 
-void unrecognized(const char *command)
+void unrecognized()
 {
   char *arg;
   arg = SCmd.next();
