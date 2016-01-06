@@ -339,13 +339,6 @@ if(!IsStandalone){
           Kd = myPID_AT.GetKd();
         break;
       }
-
-      if(TEC_out>=255){
-        TEC_out=255;
-      }
-      if(TEC_out<=0){
-        TEC_out=0;
-      }
       
     }
   }else if(algorithm == 1){
@@ -395,6 +388,7 @@ if(!IsStandalone){
   if(!TECerror&&!sensor_error){
    
       updateTEC(TEC_out);
+     
     
   }
 
@@ -411,7 +405,7 @@ if(!IsStandalone){
 
 void updateTEC(double value){
   //casting to char (0-255) and constrain between _MINTEC and _MAXTEC
-  char writeTEC = (char) value;
+  byte writeTEC = (byte) value;
   if(writeTEC>=_MAXTEC){
     writeTEC = _MAXTEC;
   }
@@ -419,14 +413,16 @@ void updateTEC(double value){
     writeTEC = _MINTEC;
   }
 
-if(!TECerror&&!sensor_error){
+
+//if(!TECerror&&!sensor_error){
     //output control value
     analogWrite(TEC_OUT_PIN, writeTEC);
   
    //if(value){
       TECrunning = TRUE;
      //  }
-}
+//}
+
     return;
 }
 
