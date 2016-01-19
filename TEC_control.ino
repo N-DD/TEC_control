@@ -27,14 +27,8 @@
 #define _STANDALONEINT 5000
 
 //TEC output generation: define _FASTPWM to use fast modulation, otherwise comment to use slower analog.write()
+//Using fast PWM will result in a modulation frequency of 62.25 kHz at 8-bit resolution
 #define _FASTPWM
-
-//PWM prescaler when _FASTPWM is defined
-#define _PWMPRE 256
-
-//temperature sensors resolution in bit: valid values are 9, 10, 12, and 12 corresponding to resolution of
-//0.5°C, 0.25°C, 0.125°C, or 0.0625°C, respectively. Conversion time is max. 1s at 12-bit resolution
-#define _TEMPRESOLUTION 11
 
 //maximum TEC output (0-255)
 #define _MAXTEC 255
@@ -49,6 +43,10 @@
 #define _MAXKP 100
 #define _MAXKI 100
 #define _MAXKD 100
+
+//temperature sensors resolution in bit: valid values are 9, 10, 12, and 12 corresponding to resolution of
+//0.5°C, 0.25°C, 0.125°C, or 0.0625°C, respectively. Conversion time is max. 1s at 12-bit resolution
+#define _TEMPRESOLUTION 11
 
 //struct for temperature sensors linked list
 typedef struct OneWireNodes {
@@ -134,12 +132,12 @@ void setup()
   //Hardware stuff
   pinMode(TEC_OUT_PIN, OUTPUT);
 
-  //Fast PWM
+  //Fast PWM: note that OCR2A is 255 for full 8-bit resolution
   #ifdef _FASTPWM
-    TCCR2A = _BV(COM2A1) | _BV(COM2B1) | _BV(WGM21) | _BV(WGM20);
-    TCCR2B = _BV(WGM22) | _BV(CS20);
-    OCR2A = _PWMPRE;
-    OCR2B = 0;
+     TCCR2A = _BV(COM2A1) | _BV(COM2B1) | _BV(WGM21) | _BV(WGM20);
+     TCCR2B = _BV(WGM22) | _BV(CS20);
+     OCR2A = 255;
+     OCR2B = 0;
   #endif
     
   //Setpoint
@@ -261,13 +259,8 @@ void setup()
  sensor_error = FALSE;
 #endif
 
-//******************************************************************************************
-//**********************************   CHECK   *********************************************
-//******************************************************************************************
-
   //Set TEC off
   shutTECoff();
-  
 }
 
 void loop()
@@ -436,7 +429,7 @@ void updateTEC(double value){
 
     #ifdef _FASTPWM
       //Fast PWM: duty cycle set by changing OCR2B value
-      OCR2B = writeTEC/_MAXTEC*_PWMPRE;
+      OCR2B = writeTEC;
     #elif !defined(_FASTPWM)
       //output control value
       analogWrite(TEC_OUT_PIN, writeTEC);
@@ -448,7 +441,14 @@ void updateTEC(double value){
 
 void shutTECoff(){
   //turns TEC control to 0
-  analogWrite(TEC_OUT_PIN, 0);
+  #ifdef _FASTPWM
+    //Can't use analogWrite while in fast PWM
+    OCR2B = 0;
+  #elif !defined(_FASTPWM)
+    //Normal mode, use analogWrite()
+    analogWrite(TEC_OUT_PIN, 0);
+  #endif
+ 
   TECrunning = FALSE;
   TECerror = TRUE;
   return;
@@ -570,7 +570,14 @@ void EnableTEC()
 
 void ClearError()
 {
- TECerror = FALSE;
+   #ifdef _FASTPWM
+    //restart fast PWM
+    TCCR2A = _BV(COM2A1) | _BV(COM2B1) | _BV(WGM21) | _BV(WGM20);
+    TCCR2B = _BV(WGM22) | _BV(CS20);
+    OCR2A = 255;
+    OCR2B = 0;
+  #endif
+  TECerror = FALSE;
 }
 
 void SaveState()
