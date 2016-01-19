@@ -9,7 +9,6 @@
 #include <EEPROM.h>
 #include "errorCodes.h"
 #include "pinout.h"
-#include "serialComm.h"
 #include <SerialCommand.h>
 
 #include <PID_AutoTune_v0.h>
@@ -33,14 +32,23 @@
 //PWM frequency in Hz when _FAST_PWM is not used (from 1 to around 500 Hz)
 #define _PWMFREQ 3
 
-//temperature sensors resolution in bit
-#define _TEMPRESOLUTION 9
+//temperature sensors resolution in bit: valid values are 9, 10, 12, and 12 corresponding to resolution of
+//0.5°C, 0.25°C, 0.125°C, or 0.0625°C, respectively. Conversion time is max. 1s at 12-bit resolution
+#define _TEMPRESOLUTION 11
 
 //maximum TEC output (0-255)
 #define _MAXTEC 255
 
 //minimum TEC output (0-255)
 #define _MINTEC 0
+
+//Minumum and makimum Kp, Ki, Kd
+#define _MINKP (-100)
+#define _MINKI (-100)
+#define _MINKD (-100)
+#define _MAXKP 100
+#define _MAXKI 100
+#define _MAXKD 100
 
 //struct for temperature sensors linked list
 typedef struct OneWireNodes {
@@ -76,7 +84,7 @@ int errnum;
 
 //************ AUTOTUNE CONFIG ************
 #define MAX_AUTOTUNE_ITER 1000
-#define _LOOKBACK 10
+#define _LOOKBACK 20
 
 //Creates an autotune
 PID_ATune myPID_AT(&T1, &TEC_out);
@@ -90,7 +98,7 @@ double Ki = 5;
 double Kd = 3;
 
 //noise level for autotune
-double ATnoise = 1;
+double ATnoise = 0.1;
 
 //************ MANUAL PID CONFIG ************  
 //create a PID
@@ -140,7 +148,7 @@ void setup()
   myPID_AT.SetLookbackSec(_LOOKBACK);
 
   //set output step (0-255)
-  myPID_AT.SetOutputStep(100);
+  myPID_AT.SetOutputStep(_MAXTEC);
 
   //turn the PID on
    myPID.SetMode(AUTOMATIC);
@@ -166,8 +174,8 @@ void setup()
   SCmd.addCommand("n", SetNoiseLevel);
   SCmd.addCommand("r", ClearError);
   SCmd.addCommand("e", EnableTEC);
-  SCmd.addCommand("c", SetHc);
   SCmd.addCommand("h", SetHh);
+  SCmd.addCommand("c", SetHc);
   SCmd.addCommand("w", SaveState);
   SCmd.addDefaultHandler(unrecognized);
 
@@ -242,7 +250,7 @@ void setup()
   
 #elif defined(_TEST)
 
- Serial.println("Found 2 fake devices");
+ Serial.println("Found 2 fake sensors");
  sensor_error = FALSE;
 #endif
 
@@ -334,10 +342,12 @@ if(!IsStandalone){
       if(AT_out == 1){
         //Serial.print("AT finished at iteration "); Serial.println(i);
           //get autotune parameters
-          Kp = myPID_AT.GetKp();
-          Ki = myPID_AT.GetKi();
-          Kd = myPID_AT.GetKd();
-        break;
+       
+         Kp = constrain (myPID_AT.GetKp(), _MINKP, _MAXKP);
+         Ki = constrain (myPID_AT.GetKi(), _MINKI, _MAXKI);
+         Kd = constrain (myPID_AT.GetKd(), _MINKD, _MAXKD);        
+          
+       break;
       }
       
     }
@@ -385,10 +395,10 @@ if(!IsStandalone){
   //******************************************************************************************
  
   //Updating TEC control if TECerror and sensor_error are FLASE
-  if(!TECerror&&!sensor_error){
-   
+  if((!TECerror)&&(!sensor_error)){
+
+      TEC_out = constrain (TEC_out, _MINTEC, _MAXTEC);
       updateTEC(TEC_out);
-     
     
   }
 
@@ -397,6 +407,10 @@ if(!IsStandalone){
   //******************************************************************************************
   //********************************   Serial comm   *****************************************
   //******************************************************************************************
+ }else
+ {
+  updateTEC(0);
+  TECrunning = FALSE;
  }
 
   SCmd.readSerial(); 
@@ -517,21 +531,21 @@ void SetNoiseLevel()
   }
 }
 
-void SetHc()
-{
-  char *arg;
-  arg = SCmd.next();
-  if(arg!=NULL){
-    Hys_cool = atof(arg);
-  }
-}
-
 void SetHh()
 {
   char *arg;
   arg = SCmd.next();
   if(arg!=NULL){
     Hys_heat = atof(arg);
+  }
+}
+
+void SetHc()
+{
+  char *arg;
+  arg = SCmd.next();
+  if(arg!=NULL){
+    Hys_cool = atof(arg);
   }
 }
 
