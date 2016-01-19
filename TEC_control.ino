@@ -10,7 +10,7 @@
 #include "errorCodes.h"
 #include "pinout.h"
 #include <SerialCommand.h>
-
+#include <avr/io.h>
 #include <PID_AutoTune_v0.h>
 #include <PID_v1.h>
 
@@ -26,11 +26,11 @@
 //timeout (in ms) for entering standalone mode
 #define _STANDALONEINT 5000
 
-//TEC output generation: define _FAST_PWM to use fast modulation, otherwise comment to use slower analog.write()
-//#define _FAST_PWM
+//TEC output generation: define _FASTPWM to use fast modulation, otherwise comment to use slower analog.write()
+#define _FASTPWM
 
-//PWM frequency in Hz when _FAST_PWM is not used (from 1 to around 500 Hz)
-#define _PWMFREQ 3
+//PWM prescaler when _FASTPWM is defined
+#define _PWMPRE 256
 
 //temperature sensors resolution in bit: valid values are 9, 10, 12, and 12 corresponding to resolution of
 //0.5°C, 0.25°C, 0.125°C, or 0.0625°C, respectively. Conversion time is max. 1s at 12-bit resolution
@@ -118,10 +118,6 @@ double lastTime;
 bool IsConnected = FALSE;
 bool IsStandalone = FALSE;
 
-#ifdef _FAST_PWM
-  #include <TimerHelpers.h>
-#endif
-
 //************ TEMPERATURE SENSORS CONFIG ************  
 //Setup a OneWire instance for T1 and T2 on ONE_WIRE_BUS
 OneWire oneWire(ONE_WIRE_BUS);
@@ -135,6 +131,17 @@ SerialCommand SCmd;
 
 void setup()
 {
+  //Hardware stuff
+  pinMode(TEC_OUT_PIN, OUTPUT);
+
+  //Fast PWM
+  #ifdef _FASTPWM
+    TCCR2A = _BV(COM2A1) | _BV(COM2B1) | _BV(WGM21) | _BV(WGM20);
+    TCCR2B = _BV(WGM22) | _BV(CS20);
+    OCR2A = _PWMPRE;
+    OCR2B = 0;
+  #endif
+    
   //Setpoint
   Setpoint = -10;
   
@@ -418,7 +425,7 @@ if(!IsStandalone){
 }
 
 void updateTEC(double value){
-  //casting to char (0-255) and constrain between _MINTEC and _MAXTEC
+  //casting to byte (0-255) and constrain between _MINTEC and _MAXTEC
   byte writeTEC = (byte) value;
   if(writeTEC>=_MAXTEC){
     writeTEC = _MAXTEC;
@@ -427,16 +434,15 @@ void updateTEC(double value){
     writeTEC = _MINTEC;
   }
 
-
-//if(!TECerror&&!sensor_error){
-    //output control value
-    analogWrite(TEC_OUT_PIN, writeTEC);
-  
-   //if(value){
+    #ifdef _FASTPWM
+      //Fast PWM: duty cycle set by changing OCR2B value
+      OCR2B = writeTEC/_MAXTEC*_PWMPRE;
+    #elif !defined(_FASTPWM)
+      //output control value
+      analogWrite(TEC_OUT_PIN, writeTEC);
       TECrunning = TRUE;
-     //  }
-//}
-
+    #endif
+    
     return;
 }
 
